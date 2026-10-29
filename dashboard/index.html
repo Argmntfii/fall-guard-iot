@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FallGuard Dashboard</title>
+<style>
+  :root { --bg:#f4f6f8; --card:#fff; --ink:#1b1f24; --mute:#667085; --line:#e4e7ec; --ok:#12805c; --bad:#c62828; --accent:#0b6bcb; --warn:#b26a00; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#111417; --card:#1b2025; --ink:#eef1f4; --mute:#98a2b3; --line:#2b323a; --ok:#4cc38a; --bad:#ff6b6b; --accent:#5aa9ff; --warn:#f0b254; }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; font:14px/1.45 system-ui,sans-serif; background:var(--bg); color:var(--ink); }
+  header { display:flex; flex-wrap:wrap; gap:10px; align-items:end; padding:14px 20px; border-bottom:1px solid var(--line); background:var(--card); }
+  header h1 { font-size:18px; margin:0 auto 0 0; }
+  header label { font-size:11px; color:var(--mute); display:block; }
+  input { padding:7px 9px; border:1px solid var(--line); border-radius:8px; background:transparent; color:var(--ink); font:inherit; }
+  button { padding:8px 14px; border:0; border-radius:8px; background:var(--accent); color:#fff; font:inherit; font-weight:600; cursor:pointer; }
+  main { display:grid; gap:14px; padding:16px 20px; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; }
+  .card h2 { font-size:12px; margin:0 0 10px; text-transform:uppercase; letter-spacing:.06em; color:var(--mute); }
+  .wide { grid-column:1/-1; }
+  #status { text-align:center; font-size:28px; font-weight:700; padding:22px 8px; border-radius:10px; color:var(--ok); border:2px solid var(--ok); }
+  #status.alert { color:#fff; background:var(--bad); border-color:var(--bad); }
+  .dev { display:flex; align-items:center; gap:8px; padding:5px 0; }
+  .dot { width:10px; height:10px; border-radius:50%; background:var(--mute); }
+  .dot.on { background:var(--ok); }
+  .stats { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+  .stats b { display:block; font-size:20px; font-variant-numeric:tabular-nums; }
+  .stats span { font-size:11px; color:var(--mute); }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th, td { text-align:left; padding:6px 8px; border-top:1px solid var(--line); }
+  th { color:var(--mute); font-weight:500; border-top:0; }
+  #logbox { max-height:180px; overflow:auto; font:12px/1.5 ui-monospace,monospace; color:var(--mute); white-space:pre-wrap; }
+  canvas { max-height:280px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>FallGuard Dashboard</h1>
+  <div><label for="project">PROJECT_ID</label><input id="project" value="ganti-dengan-id-unik" size="22"></div>
+  <div><label for="broker">MQTT WebSocket URL</label><input id="broker" value="wss://broker.hivemq.com:8884/mqtt" size="32"></div>
+  <button id="connect">Hubungkan</button>
+  <span id="conn" style="color:var(--mute)">belum terhubung</span>
+</header>
+
+<main>
+  <section class="card"><h2>Status</h2><div id="status">AMAN</div>
+    <button id="reset" style="margin-top:10px;width:100%;background:transparent;color:var(--ink);border:1px solid var(--line)">Reset status</button></section>
+  <section class="card"><h2>Perangkat</h2>
+    <div class="dev"><span class="dot" id="d-edge1"></span>Edge 1 (HP sensor) <small id="t-edge1" style="color:var(--mute)"></small></div>
+    <div class="dev"><span class="dot" id="d-edge2"></span>Edge 2 (penerima / ESP32) <small id="t-edge2" style="color:var(--mute)"></small></div>
+    <div class="dev"><span class="dot" id="d-processor"></span>Processor (laptop) <small id="t-processor" style="color:var(--mute)"></small></div>
+  </section>
+  <section class="card"><h2>Statistik</h2>
+    <div class="stats">
+      <div><b id="sMsg">0</b><span>pesan sensor</span></div>
+      <div><b id="sRate">0</b><span>pesan / detik</span></div>
+      <div><b id="sAlert">0</b><span>alert</span></div>
+      <div><b id="sEvent">0</b><span>event dari HP</span></div>
+      <div><b id="sRej">0</b><span>ditolak processor</span></div>
+      <div><b id="sAck">0</b><span>ack</span></div>
+    </div>
+  </section>
+
+  <section class="card wide"><h2>Sensor live</h2><canvas id="chart"></canvas></section>
+  <section class="card wide"><h2>Riwayat alert</h2>
+    <table><thead><tr><th>Waktu</th><th>Device</th><th>Sumber</th><th>Confidence</th><th>Proses (ms)</th></tr></thead>
+      <tbody id="alerts"><tr><td colspan="5" style="color:var(--mute)">Belum ada alert.</td></tr></tbody></table>
+  </section>
+  <section class="card wide"><h2>Log</h2><div id="logbox"></div></section>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/mqtt@5/dist/mqtt.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const MAXPTS = 200;
+  const last = { edge1: 0, edge2: 0, processor: 0 };
+  const explicitOffline = { edge1: false, edge2: false, processor: false };
+  let client = null, count = { msg: 0, alert: 0, event: 0, rej: 0, ack: 0 }, perSec = 0, project = '';
+
+  try {
+    const q = new URLSearchParams(location.search);
+    ['project', 'broker'].forEach(k => { const v = q.get(k) || localStorage.getItem('fgd_' + k); if (v) $(k).value = v; });
+  } catch (e) { /* abaikan */ }
+
+  const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  const chart = new Chart($('chart'), {
+    type: 'line',
+    data: { labels: [], datasets: [
+      { label: 'Edge 1 magnitude (m/s²)', data: [], borderColor: css('--accent'), pointRadius: 0, borderWidth: 1.5, yAxisID: 'y' },
+      { label: 'Edge 1 gyro (rad/s)', data: [], borderColor: css('--warn'), pointRadius: 0, borderWidth: 1.5, yAxisID: 'y1' },
+      { label: 'Edge 2 magnitude (m/s²)', data: [], borderColor: css('--ok'), pointRadius: 0, borderWidth: 1, borderDash: [4, 3], yAxisID: 'y' },
+    ] },
+    options: { animation: false, responsive: true, interaction: { intersect: false },
+      scales: { x: { ticks: { maxTicksLimit: 8 } }, y: { title: { display: true, text: 'm/s²' } },
+                y1: { position: 'right', title: { display: true, text: 'rad/s' }, grid: { drawOnChartArea: false } } } },
+  });
+
+  function pushSample(device, d) {
+    // semua dataset berbagi label; nilai device lain diisi null (spanGaps menyambungkan garis)
+    const label = new Date().toLocaleTimeString();
+    chart.data.labels.push(label);
+    chart.data.datasets[0].data.push(device === 'edge1' ? d.mag : null);
+    chart.data.datasets[1].data.push(device === 'edge1' ? d.gyro : null);
+    chart.data.datasets[2].data.push(device === 'edge2' ? d.mag : null);
+    if (chart.data.labels.length > MAXPTS) {
+      chart.data.labels.shift(); chart.data.datasets.forEach(x => x.data.shift());
+    }
+  }
+  chart.options.spanGaps = true;
+  chart.data.datasets.forEach(d => { d.spanGaps = true; });
+
+  function log(msg) {
+    const el = $('logbox');
+    el.textContent = `${new Date().toLocaleTimeString()}  ${msg}\n` + el.textContent.slice(0, 5000);
+  }
+  function setAlarm(on) {
+    $('status').classList.toggle('alert', on);
+    $('status').textContent = on ? 'JATUH TERDETEKSI!' : 'AMAN';
+  }
+  function addAlertRow(a) {
+    const tb = $('alerts');
+    if (tb.rows[0] && tb.rows[0].cells[0].colSpan === 5) tb.innerHTML = '';
+    const tr = tb.insertRow(0);
+    [new Date().toLocaleTimeString(), a.device, a.source, a.confidence == null ? '-' : a.confidence, a.processing_ms == null ? '-' : a.processing_ms]
+      .forEach(v => { tr.insertCell().textContent = String(v); });
+  }
+  function render() {
+    const now = Date.now();
+    ['edge1', 'edge2', 'processor'].forEach(k => {
+      const on = !explicitOffline[k] && now - last[k] < 6000;
+      $('d-' + k).classList.toggle('on', on);
+      $('t-' + k).textContent = last[k] ? (on ? '· aktif' : '· tidak aktif') : '';
+    });
+    $('sMsg').textContent = count.msg; $('sRate').textContent = perSec;
+    $('sAlert').textContent = count.alert; $('sEvent').textContent = count.event;
+    $('sRej').textContent = count.rej; $('sAck').textContent = count.ack;
+    chart.update('none');
+  }
+
+  function onMessage(topic, payload) {
+    const rel = topic.split('/').slice(2).join('/');   // setelah fallguard/<ID>/
+    const text = payload.toString();
+    let d = null; try { d = JSON.parse(text); } catch (e) { /* status berupa teks biasa */ }
+    const m = rel.match(/^(edge1|edge2)\/(sensor|event|ack|status)$/);
+    if (m) {
+      const [, dev, kind] = m;
+      if (kind === 'sensor' && d) { count.msg++; perSec++; last[dev] = Date.now(); explicitOffline[dev] = false; pushSample(dev, d); }
+      else if (kind === 'event' && d) { count.event++; log(`${dev}: POSSIBLE_FALL (impact ${new Date(d.t_impact).toLocaleTimeString()}, freefall=${d.had_freefall}, gyro=${d.gyro_peak})`); }
+      else if (kind === 'ack') { count.ack++; setAlarm(false); log(`${dev}: ack`); }
+      else if (kind === 'status') { explicitOffline[dev] = text === 'offline'; if (text === 'online') last[dev] = Date.now(); log(`${dev} ${text}`); }
+    } else if (rel === 'alert' && d) {
+      count.alert++; setAlarm(true); addAlertRow(d);
+      log(`ALERT dari ${d.device} (sumber ${d.source}, confidence ${d.confidence})`);
+    } else if (rel === 'processor/log' && d) {
+      if (d.decision === 'REJECTED') count.rej++;
+      log(`processor: ${d.decision} (${d.source}, conf=${d.confidence}, n=${d.samples})`);
+    } else if (rel === 'processor/status') {
+      explicitOffline.processor = text === 'offline'; if (text === 'online') last.processor = Date.now(); log(`processor ${text}`);
+    }
+  }
+
+  $('connect').addEventListener('click', () => {
+    project = $('project').value.trim();
+    if (!project || project === 'ganti-dengan-id-unik') { $('conn').textContent = 'isi PROJECT_ID dulu'; return; }
+    try { localStorage.setItem('fgd_project', project); localStorage.setItem('fgd_broker', $('broker').value); } catch (e) { /* abaikan */ }
+    if (client) client.end();
+    client = mqtt.connect($('broker').value.trim(), { clientId: 'fg-dash-' + Math.random().toString(16).slice(2, 8), reconnectPeriod: 2000 });
+    client.on('connect', () => { $('conn').textContent = 'terhubung'; client.subscribe(`fallguard/${project}/#`); log('terhubung, subscribe fallguard/' + project + '/#'); });
+    client.on('offline', () => { $('conn').textContent = 'offline'; });
+    client.on('error', e => log('error: ' + e.message));
+    client.on('message', onMessage);
+  });
+  $('reset').addEventListener('click', () => setAlarm(false));
+  setInterval(() => { render(); perSec = 0; }, 1000);
+  setInterval(() => chart.update('none'), 250);
+})();
+</script>
+</body>
+</html>

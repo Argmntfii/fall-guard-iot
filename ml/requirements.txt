@@ -1,0 +1,2 @@
+-r ../processor/requirements.txt
+matplotlib>=3.7

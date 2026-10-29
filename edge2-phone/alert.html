@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FallGuard · Edge 2</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --ink:#1b1f24; --mute:#667085; --line:#e4e7ec; --ok:#12805c; --bad:#c62828; --accent:#0b6bcb; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#14171a; --card:#1d2227; --ink:#eef1f4; --mute:#98a2b3; --line:#2b323a; --ok:#4cc38a; --bad:#ff6b6b; --accent:#5aa9ff; }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:16px; font:15px/1.45 system-ui,sans-serif; background:var(--bg); color:var(--ink); max-width:560px; margin-inline:auto; }
+  h1 { font-size:20px; margin:0 0 4px; }
+  p.sub { margin:0 0 14px; color:var(--mute); }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; margin-bottom:12px; }
+  label { display:block; font-size:12px; color:var(--mute); margin:8px 0 3px; }
+  input { width:100%; padding:9px 10px; border:1px solid var(--line); border-radius:8px; background:transparent; color:var(--ink); font:inherit; }
+  button { width:100%; margin-top:10px; padding:12px; border:0; border-radius:10px; font:inherit; font-weight:600; background:var(--accent); color:#fff; }
+  #status { text-align:center; font-size:26px; font-weight:700; padding:28px 10px; border-radius:12px; color:var(--ok); border:2px solid var(--ok); }
+  #status.alert { color:#fff; background:var(--bad); border-color:var(--bad); animation:blink 1s infinite; }
+  @keyframes blink { 50% { opacity:.55; } }
+  ul { list-style:none; margin:0; padding:0; font-size:13px; color:var(--mute); }
+  li { padding:6px 0; border-top:1px solid var(--line); }
+</style>
+</head>
+<body>
+<h1>FallGuard · Edge 2 (pemilik)</h1>
+<p class="sub">Menerima alert jatuh dari processor. Tekan "Aktifkan" dulu agar suara & getar diizinkan browser.</p>
+
+<div class="card">
+  <label for="project">PROJECT_ID</label>
+  <input id="project" value="ganti-dengan-id-unik" autocomplete="off" autocapitalize="off">
+  <label for="broker">MQTT WebSocket URL</label>
+  <input id="broker" value="wss://broker.hivemq.com:8884/mqtt" autocomplete="off" autocapitalize="off">
+  <button id="go">Aktifkan</button>
+  <p id="conn" class="sub" style="margin:10px 0 0">MQTT: belum berjalan</p>
+</div>
+
+<div id="status">AMAN</div>
+<button id="ack" style="display:none">Saya baik-baik saja (kirim ack)</button>
+
+<div class="card" style="margin-top:12px">
+  <b>Riwayat alert</b>
+  <ul id="history"><li>Belum ada alert.</li></ul>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/mqtt@5/dist/mqtt.min.js"></script>
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  let client = null, audio = null, beepTimer = null, project = '';
+  const topic = s => `fallguard/${project}/${s}`;
+
+  try {
+    const q = new URLSearchParams(location.search);
+    ['project', 'broker'].forEach(k => { const v = q.get(k) || localStorage.getItem('fg2_' + k); if (v) $(k).value = v; });
+  } catch (e) { /* abaikan */ }
+
+  function beep() {
+    if (!audio) return;
+    const o = audio.createOscillator(), g = audio.createGain();
+    o.frequency.value = 880; g.gain.value = 0.25;
+    o.connect(g); g.connect(audio.destination);
+    o.start(); o.stop(audio.currentTime + 0.35);
+    if (navigator.vibrate) navigator.vibrate([300, 150, 300]);
+  }
+  function setAlert(on) {
+    $('status').classList.toggle('alert', on);
+    $('status').textContent = on ? 'JATUH TERDETEKSI!' : 'AMAN';
+    $('ack').style.display = on ? 'block' : 'none';
+    clearInterval(beepTimer);
+    if (on) { beep(); beepTimer = setInterval(beep, 1200); }
+  }
+  function addHistory(a) {
+    const ul = $('history');
+    if (ul.firstChild && ul.firstChild.dataset && ul.firstChild.dataset.empty) ul.innerHTML = '';
+    const li = document.createElement('li');
+    const conf = a.confidence == null ? '-' : a.confidence;
+    li.textContent = `${new Date().toLocaleTimeString()} · ${a.device} · sumber ${a.source} · confidence ${conf}`;
+    ul.prepend(li);
+  }
+
+  $('go').addEventListener('click', () => {
+    project = $('project').value.trim();
+    if (!project || project === 'ganti-dengan-id-unik') { $('conn').textContent = 'Isi PROJECT_ID dulu'; return; }
+    try { localStorage.setItem('fg2_project', project); localStorage.setItem('fg2_broker', $('broker').value); } catch (e) { /* abaikan */ }
+    audio = audio || new (window.AudioContext || window.webkitAudioContext)();
+    if (client) client.end();
+    client = mqtt.connect($('broker').value.trim(), {
+      clientId: 'fg-edge2-' + Math.random().toString(16).slice(2, 8), reconnectPeriod: 2000,
+      will: { topic: topic('edge2/status'), payload: 'offline', retain: true },
+    });
+    client.on('connect', () => {
+      $('conn').textContent = 'MQTT: terhubung, menunggu alert';
+      client.subscribe(topic('alert'));
+      client.publish(topic('edge2/status'), 'online', { retain: true });
+    });
+    client.on('offline', () => { $('conn').textContent = 'MQTT: offline'; });
+    client.on('message', (t, payload) => {
+      if (!t.endsWith('/alert')) return;
+      let a; try { a = JSON.parse(payload.toString()); } catch (e) { return; }
+      if (a.type !== 'FALL') return;
+      setAlert(true); addHistory(a);
+    });
+  });
+
+  $('ack').addEventListener('click', () => {
+    if (client) client.publish(topic('edge2/ack'), JSON.stringify({ device: 'edge2', t: Date.now(), ok: true }));
+    setAlert(false);
+  });
+})();
+</script>
+</body>
+</html>

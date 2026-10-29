@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FallGuard · Edge 1</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --ink:#1b1f24; --mute:#667085; --line:#e4e7ec; --accent:#0b6bcb; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#14171a; --card:#1d2227; --ink:#eef1f4; --mute:#98a2b3; --line:#2b323a; --accent:#5aa9ff; }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:16px; font:15px/1.45 system-ui,sans-serif; background:var(--bg); color:var(--ink); max-width:560px; margin-inline:auto; }
+  h1 { font-size:20px; margin:0 0 4px; }
+  p.sub { margin:0 0 14px; color:var(--mute); }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; margin-bottom:12px; }
+  label { display:block; font-size:12px; color:var(--mute); margin:8px 0 3px; }
+  input { width:100%; padding:9px 10px; border:1px solid var(--line); border-radius:8px; background:transparent; color:var(--ink); font:inherit; }
+  .row { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .btns { display:flex; gap:10px; margin-top:12px; }
+  button { flex:1; padding:12px; border:0; border-radius:10px; font:inherit; font-weight:600; background:var(--accent); color:#fff; }
+  button:disabled { opacity:.4; }
+  button#stop { background:transparent; color:var(--ink); border:1px solid var(--line); }
+  .grid { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; }
+  .m b { display:block; font-size:22px; font-variant-numeric:tabular-nums; }
+  .m span { font-size:12px; color:var(--mute); }
+  pre { margin:0; max-height:190px; overflow:auto; font-size:12px; white-space:pre-wrap; color:var(--mute); }
+  details summary { cursor:pointer; color:var(--mute); }
+</style>
+</head>
+<body>
+<h1>FallGuard · Edge 1</h1>
+<p class="sub">HP ini membaca accelerometer + gyroscope, memproses di perangkat, lalu publish ke MQTT. Buka lewat <b>HTTPS</b>, taruh di saku/pinggang, jaga layar tetap menyala.</p>
+
+<div class="card">
+  <label for="project">PROJECT_ID (sama dengan processor & dashboard)</label>
+  <input id="project" value="ganti-dengan-id-unik" autocomplete="off" autocapitalize="off">
+  <label for="broker">MQTT WebSocket URL</label>
+  <input id="broker" value="wss://broker.hivemq.com:8884/mqtt" autocomplete="off" autocapitalize="off">
+  <details style="margin-top:10px"><summary>Ambang deteksi (kalibrasi)</summary>
+    <div class="row">
+      <div><label for="impact">Impact (m/s²)</label><input id="impact" type="number" step="0.5" value="18"></div>
+      <div><label for="freefall">Free-fall (m/s²)</label><input id="freefall" type="number" step="0.5" value="4"></div>
+      <div><label for="stillStd">Std diam (m/s²)</label><input id="stillStd" type="number" step="0.1" value="1.2"></div>
+      <div><label for="gyroMin">Gyro min (rad/s)</label><input id="gyroMin" type="number" step="0.5" value="2"></div>
+    </div>
+  </details>
+  <div class="btns"><button id="start">Mulai</button><button id="stop" disabled>Stop</button></div>
+  <p id="conn" class="sub" style="margin:10px 0 0">MQTT: belum berjalan</p>
+</div>
+
+<div class="card grid">
+  <div class="m"><b id="mag">—</b><span>Magnitude (m/s²)</span></div>
+  <div class="m"><b id="gyro">—</b><span>Gyro (rad/s)</span></div>
+  <div class="m"><b id="rms">—</b><span>RMS 5 detik (m/s²)</span></div>
+  <div class="m"><b id="state">—</b><span>State machine</span></div>
+  <div class="m"><b id="cMotion">0</b><span>Event motion</span></div>
+  <div class="m"><b id="cValid">0</b><span>Pembacaan 2 sensor valid</span></div>
+  <div class="m"><b id="cSent">0</b><span>Pesan MQTT terkirim</span></div>
+  <div class="m"><b id="cEvents">0</b><span>Kemungkinan jatuh dikirim</span></div>
+</div>
+
+<div class="card"><pre id="log">Menunggu mulai...</pre></div>
+
+<script src="https://cdn.jsdelivr.net/npm/mqtt@5/dist/mqtt.min.js"></script>
+<script src="detector.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
