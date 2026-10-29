@@ -54,10 +54,14 @@ def handle_event(client, device, ev, model=None):
         if t_imp - WINDOW_BEFORE_MS <= s["t"] <= t_imp + WINDOW_AFTER_MS + 200
     ]
     started = time.time()
-    if len(window) < 20:
-        is_fall, conf, source = True, None, "edge-only"   # data kurang -> percaya HP
+    if model is None or len(window) < 20:
+        is_fall, conf, source = True, None, "edge-only"
     else:
         is_fall, conf, source = confirm(window, model, config.CONFIRM_THRESHOLD)
+    # if len(window) < 20:
+    #     is_fall, conf, source = True, None, "edge-only"   # data kurang -> percaya HP
+    # else:
+    #     is_fall, conf, source = confirm(window, model, config.CONFIRM_THRESHOLD)
     ms = round((time.time() - started) * 1000, 1)
 
     log = {"device": device, "t_impact": t_imp, "samples": len(window), "source": source,
