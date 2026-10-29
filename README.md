@@ -71,7 +71,7 @@ Semua topic berawalan `fallguard/<PROJECT_ID>/`.
 Pilih satu `PROJECT_ID` unik (mis. `kel7-fall-8f3a`) dan pakai di semua perangkat.
 
 **1. Hosting halaman HP (sekali saja).** Push repo ke GitHub → *Settings → Pages →* branch `main`, folder `/ (root)`.
-Halaman dapat dibuka di `https://<user>.github.io/<repo>/edge1-phone/` dan `.../edge2-phone/alert.html`.
+Halaman dapat dibuka di `https://argmntfii.github.io/fall-guard-iot/edge1-phone/` dan `.../edge2-phone/alert.html`.
 HTTPS wajib agar browser mengizinkan sensor gerak.
 
 **2. Processor (laptop).**
@@ -151,12 +151,3 @@ fall-guard-iot/
 - Posisi HP (saku vs tas) memengaruhi sinyal; model dilatih pada posisi yang sama dengan penggunaan.
 - Broker publik tidak punya jaminan layanan maupun privasi.
 - Sketch ESP32 belum diuji pada semua varian board; sesuaikan pin.
-
-## Anggota & pembagian tugas
-
-| Nama | Tugas |
-|---|---|
-| | Edge 1 (HP) & kalibrasi |
-| | Edge 2 / hardware |
-| | Processor & AI |
-| | Dashboard & dokumentasi |
