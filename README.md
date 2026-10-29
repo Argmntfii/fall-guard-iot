@@ -129,9 +129,6 @@ Nilai sensor tidak pernah disimulasikan: bila HP tidak punya sensor, halaman han
 cd processor && pip install pytest && pytest        # 15 uji (state machine, fitur, alur processor)
 node edge1-phone/detector.test.js                   # uji state machine versi JS
 ```
-Pengujian sistem (jatuh vs aktivitas harian, latensi, false positive) dicatat di
-[`docs/hasil-pengujian.md`](docs/hasil-pengujian.md).
-
 ## Struktur repo
 
 ```
