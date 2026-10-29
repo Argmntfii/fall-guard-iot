@@ -1,6 +1,8 @@
 # FallGuard — Pendeteksi Jatuh Berbasis IoT Edge + MQTT
 
-> Tugas IoT · Kelompok **[isi nomor/nama]** · Anggota: **[nama 1, nama 2, nama 3, nama 4]**
+> Tugas IoT · Kelompok **11** · Anggota: **Chayara Alima Ramadhani - 
+Al Ma'lufi - 
+Intan Zahra Amartin**
 
 FallGuard mendeteksi jatuh memakai **accelerometer + gyroscope** pada HP Android yang dibawa pengguna.
 HP memproses sinyal di perangkat (edge), mengirimkannya lewat **MQTT** ke cloud, lalu sebuah
@@ -8,10 +10,8 @@ HP memproses sinyal di perangkat (edge), mengirimkannya lewat **MQTT** ke cloud,
 (HP kedua atau ESP32 berbuzzer) dan tampil di **dashboard** pada jaringan yang sama dengan pengguna.
 
 **Masalah:** orang lanjut usia yang jatuh sendirian sering terlambat ditolong.
-**Pembeda ide:** *[tulis nilai tambah kelompok kalian, mis. konfirmasi dua tahap untuk menekan alarm palsu, tombol "saya aman", dsb.]*
+**Pembeda ide:** Konfirmasi dua tahap untuk menekan alarm palsu, tombol "saya aman"
 
-- Video demo: **[link]**
-- Presentasi: `docs/presentasi.pptx`
 
 ## Arsitektur
 
