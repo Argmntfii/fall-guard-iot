@@ -1,8 +1,4 @@
-"""Konfigurasi processor. Ubah lewat environment variable atau edit default di sini.
 
-PROJECT_ID HARUS sama dengan yang dimasukkan di halaman HP, dashboard, dan ESP32.
-Broker publik tidak punya privasi: pakai ID unik dan jangan kirim data pribadi.
-"""
 import os
 
 PROJECT_ID = os.getenv("FALLGUARD_PROJECT", "ganti-dengan-id-unik")
