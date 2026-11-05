@@ -36,8 +36,7 @@ def main():
     import paho.mqtt.client as mqtt
 
     rows = []
-    client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION_2, client_id=f"fg-rec-{os.getpid()}")
-
+   client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id=f"fg-rec-{os.getpid()}")
     def on_connect(c, u, f, rc, p=None):
         c.subscribe(config.topic("edge1", "sensor"))
 
