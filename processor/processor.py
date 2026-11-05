@@ -83,7 +83,7 @@ def main():
 
     global MODEL
     MODEL = load_model()
-    client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION_2, client_id=f"fg-processor-{os.getpid()}")
+   client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id=f"fg-processor-{os.getpid()}")
     client.will_set(config.topic("processor", "status"), "offline", retain=True)
 
     def on_connect(c, userdata, flags, reason_code, properties=None):
